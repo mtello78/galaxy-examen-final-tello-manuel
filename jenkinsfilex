@@ -1,18 +1,19 @@
 pipeline {
-    agent {
-        docker { image 'maven:3.6.3-openjdk-11-slim' }
-            }
-    stages {
-        stage('Build') {
-            steps {
-               sh 'mvn package'
-            }
-            post{
-                success {
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true, onlyIfSuccessful: true
-                }
-            }
+    agent any
+    environment {
+        DOCKER_CREDS = credentials('docker-credentials')
         }
+        stages {
+            stage('Build') {
+                agent {
+                    docker { image 'maven:3.6.3-openjdk-11-slim' }
+                }
+                    steps {
+                        sh 'mvn -B verify'
+                        archiveArtifacts artifacts: 'target/*.jar', fingerprint: true, onlyIfSuccessful: true
+                    }
+            }
+        
         stage('SonarQube analysis') {
             steps {
                 script{
@@ -31,34 +32,25 @@ pipeline {
                             -Dsonar.java.binaries=target/classes \
                             -Dsonar.java.coveragePlugin=jacoco \
                             -Dsonar.coverage.jacoco.xmlReportPaths=target/jacoco.xml \
-                            -Dsonar.exclusions=**/*IT.java,**/*TEST.java,**/*Test.java,**/src/it**,**/src/test**,**/gradle/wrapper** \
+                            -Dsonar.exclusions=*/*IT.java,/*TEST.java,/*Test.java,/src/it,/src/test,/gradle/wrapper* \
                             -Dsonar.java.libraries=target/*.jar"
                         }
                     }
-               }
-            }
-      #stage('Build Image') {
-      #          steps {
-      #              copyArtifacts filter: 'target/*.jar',
-      #                              fingerprintArtifacts: true,
-      #                              projectName: '${JOB_NAME}',
-      #                              flatten: true,
-      #                              selector: specific('${BUILD_NUMBER}'),
-      #                              target: 'target/'
-      #              sh 'docker --version'
-      #              sh 'docker-compose --version'
-      #              sh 'docker-compose build'
-      #          }
-      #  }
-	  
-	  stage('Build') {
-            steps {             sh 'mvn package'            }
-            post{
-                success {
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true, onlyIfSuccessful: true
                 }
             }
-        }
+            stage('Build Image') {
+                steps {
+                    copyArtifacts filter: 'target/*.jar',
+                                fingerprintArtifacts: true,
+                                projectName: '${JOB_NAME}',
+                                flatten: true,
+                                selector: specific('${BUILD_NUMBER}'),
+                                target: 'target';
+                    sh 'docker --version'
+                    sh 'docker-compose --version'
+                    sh 'docker-compose build'
+                }
+            }
             stage('Publish Image') {
                 steps {
                     script {
@@ -73,14 +65,14 @@ pipeline {
                 steps {
                     script {
                         sh 'docker login -u ${DOCKER_CREDS_USR} -p ${DOCKER_CREDS_PSW}'
-                        sh 'docker rm galaxyLab -f'
-                        sh 'docker run -d -p 8080:8080 --name galaxyLab ${DOCKER_CREDS_USR}/msmicroservice:$BUILD_NUMBER'
+                        sh 'docker rm examenfinal -f'
+                        sh 'docker run -d -p 9080:8080 --name examenfinal ${DOCKER_CREDS_USR}/msmicroservice:$BUILD_NUMBER'
                         //sh 'docker run -d -p 8080:8080 ${DOCKER_CREDS_USR}/msmicroservice:$BUILD_NUMBER'
                         sh 'docker logout'
                     }
                 }
             }
-               stage('Test Run Container') {
+            stage('Test Run Container') {
                     steps {
                         script {
                             sh 'docker ps'
@@ -88,7 +80,5 @@ pipeline {
                         }
                     }
             }
-
-      }
+        }
 }
-                                               
